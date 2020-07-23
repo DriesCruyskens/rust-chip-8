@@ -10,7 +10,7 @@ fn main() {
     window_options.scale = Scale::X4;
 
     let mut window = Window::new(
-        "CHIP-8 Emulator",
+        "CHIP-8 Interpreter",
         WIDTH,
         HEIGHT,
         window_options,
