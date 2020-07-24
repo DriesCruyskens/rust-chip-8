@@ -5,7 +5,7 @@ use std::io::Error;
 use std::path::Path;
 
 pub struct Chip8 {
-    pub sp: usize,
+    pub pc: usize,
     pub v: [u8; 16],
     pub mem: [u8; 4096],
     pub stack: Vec<usize>,
@@ -21,7 +21,7 @@ pub struct Chip8 {
 impl Chip8 {
     pub fn new() -> Self {
         let mut chip8 = Chip8 {
-            sp: 0x200,
+            pc: 0x200,
             v: [0; 16],
             mem: [0; 4096],
             stack: Vec::new(),
@@ -39,27 +39,27 @@ impl Chip8 {
 
     pub fn execute_cycle(&mut self) {
         self.draw = false;
-        let opcode = self.get_opcode();
+        let ospode = self.get_ospode();
 
-        let x = ((opcode & 0x0F00) >> 8) as usize;
-        let y = ((opcode & 0x00F0) >> 4) as usize;
-        let n = (opcode & 0x000F) as u8;
-        let nn = (opcode & 0x00FF) as u8;
-        let nnn = (opcode & 0x0FFF) as usize;
+        let x = ((ospode & 0x0F00) >> 8) as usize;
+        let y = ((ospode & 0x00F0) >> 4) as usize;
+        let n = (ospode & 0x000F) as u8;
+        let nn = (ospode & 0x00FF) as u8;
+        let nnn = (ospode & 0x0FFF) as usize;
 
-        match (opcode & 0xF000) >> 12 {
+        match (ospode & 0xF000) >> 12 {
             0x0 => {
-                match opcode & 0x00FF {
+                match ospode & 0x00FF {
                     // Clear the screen.
                     0xE0 => {
                         for byte in self.framebuffer.iter_mut() {
                             *byte = 0;
                         }
-                        self.sp += 2;
+                        self.pc += 2;
                     }
                     // Return from subroutine.
                     0xEE => {
-                        self.sp = self.stack.pop().unwrap();
+                        self.pc = self.stack.pop().unwrap();
                     }
                     // Execute machine language subroutine at NNN.
                     _ => unreachable!()
@@ -67,49 +67,49 @@ impl Chip8 {
             }
             // Jump to address NNN.
             0x1 => {
-                self.sp = nnn as usize;
+                self.pc = nnn as usize;
             }
             // Execute subroutine at NNN.
             0x2 => {
-                self.stack.push(self.sp + 2);
-                self.sp = nnn as usize;
+                self.stack.push(self.pc + 2);
+                self.pc = nnn as usize;
             }
             // Skip the following instruction if the value of register VX equals NN.
             0x3 => {
                 if self.v[x] == nn {
-                    self.sp += 4;
+                    self.pc += 4;
                 } else {
-                    self.sp += 2;
+                    self.pc += 2;
                 }
             }
             // Skip the following instruction if the value of register VX is not equal to NN.
             0x4 => {
                 if self.v[x] != nn {
-                    self.sp += 4;
+                    self.pc += 4;
                 } else {
-                    self.sp += 2;
+                    self.pc += 2;
                 }
             }
             // Skip the following instruction if the value of register VX is equal to the value of register VY.
             0x5 => {
                 if self.v[x] == self.v[y] {
-                    self.sp += 4;
+                    self.pc += 4;
                 } else {
-                    self.sp += 2;
+                    self.pc += 2;
                 }
             }
             // Store number NN in register VX.
             0x6 => {
                 self.v[x] = nn;
-                self.sp += 2;
+                self.pc += 2;
             }
             // Add the value NN to register VX.
             0x7 => {
                 self.v[x] = self.v[x].wrapping_add(nn);
-                self.sp += 2;
+                self.pc += 2;
             }
             0x8 => {
-                match opcode & 0x000F {
+                match ospode & 0x000F {
                     // Store the value of register VY in register VX.
                     0x0 => {
                         self.v[x] = self.v[y];
@@ -176,30 +176,30 @@ impl Chip8 {
                     }
                     _ => unreachable!(),
                 }
-                self.sp += 2;
+                self.pc += 2;
             }
             // Skip the following instruction if the value of register VX is not equal to the value of register VY.
             0x9 => {
                 if self.v[x] != self.v[y] {
-                    self.sp += 4;
+                    self.pc += 4;
                 } else {
-                    self.sp += 2;
+                    self.pc += 2;
                 }
             }
             // Store memory address NNN in register I.
             0xA => {
                 self.i = nnn as usize;
-                self.sp += 2;
+                self.pc += 2;
             }
             // Jump to address NNN + V0.
             0xB => {
-                self.sp = nnn + self.v[0] as usize;
+                self.pc = nnn + self.v[0] as usize;
             }
             // Set VX to a random number with a mask of NN.
             0xC => {
                 let r: u8 = self.rng.gen();
                 self.v[x] = r & nn;
-                self.sp += 2;
+                self.pc += 2;
             }
             /* Draw a sprite at position VX, VY with N bytes of sprite data starting at the address stored in I.
             Set VF to 01 if any set pixels are changed to unset, and 00 otherwise. */
@@ -233,39 +233,39 @@ impl Chip8 {
 
                 self.draw = true;
 
-                self.sp += 2;
+                self.pc += 2;
             }
             0xE => {
-                match opcode & 0x00FF {
+                match ospode & 0x00FF {
                     // 	Skip the following instruction if the key corresponding to the hex value currently stored in register VX is pressed.
                     0x9E => {
                         if let Some(key) = self.active_key {
                             if key == self.v[x] {
-                                self.sp += 4;
+                                self.pc += 4;
                             } else {
-                                self.sp += 2;
+                                self.pc += 2;
                             }
                         } else {
-                            self.sp += 2;
+                            self.pc += 2;
                         };
                     }
                     // Skip the following instruction if the key corresponding to the hex value currently stored in register VX is not pressed.
                     0xA1 => {
                         if let Some(key) = self.active_key {
                             if key != self.v[x] {
-                                self.sp += 4;
+                                self.pc += 4;
                             } else {
-                                self.sp += 2;
+                                self.pc += 2;
                             }
                         } else {
-                            self.sp += 2;
+                            self.pc += 2;
                         };
                     }
                     _ => unreachable!(),
                 };
             }
             0xF => {
-                match opcode & 0x00FF {
+                match ospode & 0x00FF {
                     // Store the current value of the delay timer in register VX.
                     0x07 => {
                         self.v[x] = self.delay_timer;
@@ -275,29 +275,29 @@ impl Chip8 {
                     0x0A => {
                         if let Some(key) = self.active_key {
                             self.v[x] = key;
-                            self.sp += 2;
+                            self.pc += 2;
                         }
                     }
                     // Set delay timer = Vx. DT is set equal to the value of Vx.
                     0x15 => {
                         self.delay_timer = self.v[x];
-                        self.sp += 2;
+                        self.pc += 2;
                     }
                     // Set sound timer = Vx. DT is set equal to the value of Vx.
                     0x18 => {
                         self.sound_timer = self.v[x];
-                        self.sp += 2;
+                        self.pc += 2;
                     }
                     // Set I = I + Vx. The values of I and Vx are added, and the results are stored in I.
                     0x1E => {
                         self.i = self.i + self.v[x] as usize;
-                        self.sp += 2;
+                        self.pc += 2;
                     }
                     /* Set I = location of sprite for digit Vx.
                     The value of I is set to the location for the hexadecimal sprite corresponding to the value of Vx. */
                     0x29 => {
                         self.i = self.v[x] as usize * 5;
-                        self.sp += 2;
+                        self.pc += 2;
                     }
                     /* Store BCD representation of Vx in memory locations I, I+1, and I+2.
                     The interpreter takes the decimal value of Vx, and places the hundreds digit in memory at location in I,
@@ -306,14 +306,14 @@ impl Chip8 {
                         self.mem[self.i] = self.v[x] / 100;
                         self.mem[self.i + 1] = (self.v[x] / 10) % 10;
                         self.mem[self.i + 3] = (self.v[x] % 100) % 10;
-                        self.sp += 2;
+                        self.pc += 2;
                     }
                     /* Store registers V0 through Vx in memory starting at location I.
                     The interpreter copies the values of registers V0 through Vx into memory, starting at the address in I. */
                     0x55 => {
                         for i in 0..=x {
                             self.mem[self.i + i] = self.v[i];
-                            self.sp += 2;
+                            self.pc += 2;
                         }
                     }
                     /* Read registers V0 through Vx from memory starting at location I.
@@ -322,7 +322,7 @@ impl Chip8 {
                         for i in 0..=x {
                             self.v[i] = self.mem[self.i + i];
                             // self.i = self.i + x + 1; // Not all docs say this...
-                            self.sp += 2;
+                            self.pc += 2;
                         }
                     }
                     _ => unreachable!(),
@@ -353,8 +353,8 @@ impl Chip8 {
         Ok(())
     }
 
-    fn get_opcode(&self) -> u16 {
-        ((self.mem[self.sp] as u16) << 8) | self.mem[self.sp + 1] as u16
+    fn get_ospode(&self) -> u16 {
+        ((self.mem[self.pc] as u16) << 8) | self.mem[self.pc + 1] as u16
     }
 
     fn load_fontset(&mut self) {
