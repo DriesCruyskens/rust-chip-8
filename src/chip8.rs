@@ -123,9 +123,9 @@ impl Chip8 {
                     0x3 => {
                         self.v[x] = self.v[x] ^ self.v[y];
                     }
-                    /* Add the value of register VY to register VX
-                    Set VF to 01 if a carry occurs
-                    Set VF to 00 if a carry does not occur. */
+                    /* Set Vx = Vx + Vy, set VF = carry.
+                    The values of Vx and Vy are added together. If the result is greater than 8 bits (i.e., > 255,) VF is set to 1,
+                    otherwise 0. Only the lowest 8 bits of the result are kept, and stored in Vx. */
                     0x4 => {
                         let (sum, overflow) = self.v[x].overflowing_add(self.v[y]);
                         self.v[x] = sum;
@@ -135,9 +135,9 @@ impl Chip8 {
                             self.v[0xF] = 0;
                         }
                     }
-                    /* Subtract the value of register VY from register VX
-                    Set VF to 00 if a borrow occurs
-                    Set VF to 01 if a borrow does not occur. */
+                    /* Set Vx = Vx - Vy, set VF = NOT borrow.
+                    If Vx > Vy, then VF is set to 1, otherwise 0. 
+                    Then Vy is subtracted from Vx, and the results stored in Vx. */
                     0x5 => {
                         let (subtraction, borrow) = self.v[x].overflowing_sub(self.v[y]);
                         self.v[x] = subtraction;
@@ -147,15 +147,16 @@ impl Chip8 {
                             self.v[0xF] = 1;
                         }
                     }
-                    /* Store the value of register VY shifted right one bit in register VX
-                    Set register VF to the least significant bit prior to the shift. */
+                    /* Set Vx = Vx SHR 1.
+                    If the least-significant bit of Vx is 1, then VF is set to 1, otherwise 0. 
+                    Then Vx is divided by 2. */
                     0x6 => {
                         self.v[0xF] = self.v[x] & 0x1;
                         self.v[x] = self.v[x] >> 1;
                     }
-                    /* Set register VX to the value of VY minus VX
-                    Set VF to 00 if a borrow occurs
-                    Set VF to 01 if a borrow does not occur. */
+                    /* Set Vx = Vy - Vx, set VF = NOT borrow. 
+                    If Vy > Vx, then VF is set to 1, otherwise 0.
+                    Then Vx is subtracted from Vy, and the results stored in Vx. */
                     0x7 => {
                         let (subtraction, borrow) = self.v[y].overflowing_sub(self.v[x]);
                         self.v[x] = subtraction;
@@ -165,8 +166,9 @@ impl Chip8 {
                             self.v[0xF] = 1;
                         }
                     }
-                    /* Store the value of register VY shifted left one bit in register VX
-                    Set register VF to the most significant bit prior to the shift. */
+                    /* Set Vx = Vx SHL 1.
+                    If the most-significant bit of Vx is 1, then VF is set to 1, otherwise to 0. 
+                    Then Vx is multiplied by 2. */
                     0xE => {
                         self.v[0xF] = (self.v[x] & 0x80) >> 7;
                         self.v[x] = self.v[x] << 1;
@@ -197,8 +199,13 @@ impl Chip8 {
                 self.v[x] = r & nn;
                 self.pc += 2;
             }
-            /* Draw a sprite at position VX, VY with N bytes of sprite data starting at the address stored in I.
-            Set VF to 01 if any set pixels are changed to unset, and 00 otherwise. */
+            /* Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
+            The interpreter reads n bytes from memory, starting at the address stored in I.
+            These bytes are then displayed as sprites on screen at coordinates (Vx, Vy). 
+            Sprites are XORed onto the existing screen. If this causes any pixels to be erased, 
+            VF is set to 1, otherwise it is set to 0. 
+            If the sprite is positioned so part of it is outside the coordinates of the display,
+            it wraps around to the opposite side of the screen. */
             0xD => {
                 let vx = self.v[x];
                 let vy = self.v[y];
@@ -228,7 +235,6 @@ impl Chip8 {
                 }
 
                 self.draw = true;
-
                 self.pc += 2;
             }
             0xE => {
