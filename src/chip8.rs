@@ -39,17 +39,17 @@ impl Chip8 {
 
     pub fn execute_cycle(&mut self) {
         self.draw = false;
-        let ospode = self.get_ospode();
+        let opcode = self.get_opcode();
 
-        let x = ((ospode & 0x0F00) >> 8) as usize;
-        let y = ((ospode & 0x00F0) >> 4) as usize;
-        let n = (ospode & 0x000F) as u8;
-        let nn = (ospode & 0x00FF) as u8;
-        let nnn = (ospode & 0x0FFF) as usize;
+        let x = ((opcode & 0x0F00) >> 8) as usize;
+        let y = ((opcode & 0x00F0) >> 4) as usize;
+        let n = (opcode & 0x000F) as u8;
+        let nn = (opcode & 0x00FF) as u8;
+        let nnn = (opcode & 0x0FFF) as usize;
 
-        match (ospode & 0xF000) >> 12 {
+        match (opcode & 0xF000) >> 12 {
             0x0 => {
-                match ospode & 0x00FF {
+                match opcode & 0x00FF {
                     // Clear the screen.
                     0xE0 => {
                         for byte in self.framebuffer.iter_mut() {
@@ -62,7 +62,7 @@ impl Chip8 {
                         self.pc = self.stack.pop().unwrap();
                     }
                     // Execute machine language subroutine at NNN.
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 }
             }
             // Jump to address NNN.
@@ -77,26 +77,23 @@ impl Chip8 {
             // Skip the following instruction if the value of register VX equals NN.
             0x3 => {
                 if self.v[x] == nn {
-                    self.pc += 4;
-                } else {
                     self.pc += 2;
                 }
+                self.pc += 2;
             }
             // Skip the following instruction if the value of register VX is not equal to NN.
             0x4 => {
                 if self.v[x] != nn {
-                    self.pc += 4;
-                } else {
                     self.pc += 2;
                 }
+                self.pc += 2;
             }
             // Skip the following instruction if the value of register VX is equal to the value of register VY.
             0x5 => {
                 if self.v[x] == self.v[y] {
-                    self.pc += 4;
-                } else {
                     self.pc += 2;
                 }
+                self.pc += 2;
             }
             // Store number NN in register VX.
             0x6 => {
@@ -109,7 +106,7 @@ impl Chip8 {
                 self.pc += 2;
             }
             0x8 => {
-                match ospode & 0x000F {
+                match opcode & 0x000F {
                     // Store the value of register VY in register VX.
                     0x0 => {
                         self.v[x] = self.v[y];
@@ -153,8 +150,8 @@ impl Chip8 {
                     /* Store the value of register VY shifted right one bit in register VX
                     Set register VF to the least significant bit prior to the shift. */
                     0x6 => {
-                        self.v[0xF] = self.v[y] & 0x01;
-                        self.v[x] = self.v[y] >> 1;
+                        self.v[0xF] = self.v[x] & 0x1;
+                        self.v[x] = self.v[x] >> 1;
                     }
                     /* Set register VX to the value of VY minus VX
                     Set VF to 00 if a borrow occurs
@@ -171,8 +168,8 @@ impl Chip8 {
                     /* Store the value of register VY shifted left one bit in register VX
                     Set register VF to the most significant bit prior to the shift. */
                     0xE => {
-                        self.v[0xF] = (self.v[y] & 0x80) >> 7;
-                        self.v[x] = self.v[y] << 1;
+                        self.v[0xF] = (self.v[x] & 0x80) >> 7;
+                        self.v[x] = self.v[x] << 1;
                     }
                     _ => unreachable!(),
                 }
@@ -181,10 +178,9 @@ impl Chip8 {
             // Skip the following instruction if the value of register VX is not equal to the value of register VY.
             0x9 => {
                 if self.v[x] != self.v[y] {
-                    self.pc += 4;
-                } else {
                     self.pc += 2;
                 }
+                self.pc += 2;
             }
             // Store memory address NNN in register I.
             0xA => {
@@ -236,39 +232,34 @@ impl Chip8 {
                 self.pc += 2;
             }
             0xE => {
-                match ospode & 0x00FF {
+                match opcode & 0x00FF {
                     // 	Skip the following instruction if the key corresponding to the hex value currently stored in register VX is pressed.
                     0x9E => {
                         if let Some(key) = self.active_key {
                             if key == self.v[x] {
-                                self.pc += 4;
-                            } else {
                                 self.pc += 2;
                             }
-                        } else {
-                            self.pc += 2;
-                        };
+                        }
+                        self.pc += 2;
                     }
                     // Skip the following instruction if the key corresponding to the hex value currently stored in register VX is not pressed.
                     0xA1 => {
                         if let Some(key) = self.active_key {
                             if key != self.v[x] {
-                                self.pc += 4;
-                            } else {
                                 self.pc += 2;
                             }
-                        } else {
-                            self.pc += 2;
-                        };
+                        }
+                        self.pc += 2;
                     }
                     _ => unreachable!(),
                 };
             }
             0xF => {
-                match ospode & 0x00FF {
+                match opcode & 0x00FF {
                     // Store the current value of the delay timer in register VX.
                     0x07 => {
                         self.v[x] = self.delay_timer;
+                        self.pc += 2;
                     }
                     /* Wait for a key press, store the value of the key in Vx.
                     All execution stops until a key is pressed, then the value of that key is stored in Vx. */
@@ -305,7 +296,7 @@ impl Chip8 {
                     0x33 => {
                         self.mem[self.i] = self.v[x] / 100;
                         self.mem[self.i + 1] = (self.v[x] / 10) % 10;
-                        self.mem[self.i + 3] = (self.v[x] % 100) % 10;
+                        self.mem[self.i + 2] = (self.v[x] % 100) % 10;
                         self.pc += 2;
                     }
                     /* Store registers V0 through Vx in memory starting at location I.
@@ -313,17 +304,16 @@ impl Chip8 {
                     0x55 => {
                         for i in 0..=x {
                             self.mem[self.i + i] = self.v[i];
-                            self.pc += 2;
                         }
+                        self.pc += 2;
                     }
                     /* Read registers V0 through Vx from memory starting at location I.
                     The interpreter reads values from memory starting at location I into registers V0 through Vx. */
                     0x65 => {
                         for i in 0..=x {
                             self.v[i] = self.mem[self.i + i];
-                            // self.i = self.i + x + 1; // Not all docs say this...
-                            self.pc += 2;
                         }
+                        self.pc += 2;
                     }
                     _ => unreachable!(),
                 };
@@ -353,7 +343,7 @@ impl Chip8 {
         Ok(())
     }
 
-    fn get_ospode(&self) -> u16 {
+    fn get_opcode(&self) -> u16 {
         ((self.mem[self.pc] as u16) << 8) | self.mem[self.pc + 1] as u16
     }
 
