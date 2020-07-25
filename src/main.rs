@@ -11,7 +11,7 @@ fn main() -> Result<(), Error> {
     let mut buffer: [u32; WIDTH * HEIGHT] = [0; WIDTH * HEIGHT];
 
     let mut window_options = WindowOptions::default();
-    window_options.scale = Scale::X4;
+    window_options.scale = Scale::X8;
 
     let mut window = Window::new("CHIP-8 Interpreter", WIDTH, HEIGHT, window_options)
         .unwrap_or_else(|e| {
@@ -27,8 +27,10 @@ fn main() -> Result<(), Error> {
     while window.is_open() && !window.is_key_down(Key::Escape) {
         window.update();
         let pressed_keys = window.get_keys_pressed(KeyRepeat::No).unwrap();
-        if !pressed_keys.is_empty() {
-            chip8.active_key = to_hexadecimal_keypad(pressed_keys[0]);
+        for key in pressed_keys.iter() {
+            if let Some(key) = to_hexadecimal_keypad(*key) {
+                chip8.keys[key as usize] = true;
+            }
         }
 
         chip8.execute_cycle();

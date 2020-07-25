@@ -12,7 +12,7 @@ pub struct Chip8 {
     pub framebuffer: [u8; 64 * 32],
     pub i: usize,
     pub rng: ThreadRng,
-    pub active_key: Option<u8>,
+    pub keys: [bool; 16],
     pub delay_timer: u8,
     pub sound_timer: u8,
     pub draw: bool,
@@ -28,7 +28,7 @@ impl Chip8 {
             framebuffer: [0; 64 * 32],
             i: 0,
             rng: rand::thread_rng(),
-            active_key: None,
+            keys: [false; 16],
             sound_timer: 0,
             delay_timer: 0,
             draw: false,
@@ -241,19 +241,16 @@ impl Chip8 {
                 match opcode & 0x00FF {
                     // 	Skip the following instruction if the key corresponding to the hex value currently stored in register VX is pressed.
                     0x9E => {
-                        if let Some(key) = self.active_key {
-                            if key == self.v[x] {
-                                self.pc += 2;
-                            }
+                        if self.keys[self.v[x] as usize] == true {
+                            self.keys[self.v[x] as usize] = false; 
+                            self.pc += 2;
                         }
                         self.pc += 2;
                     }
                     // Skip the following instruction if the key corresponding to the hex value currently stored in register VX is not pressed.
                     0xA1 => {
-                        if let Some(key) = self.active_key {
-                            if key != self.v[x] {
-                                self.pc += 2;
-                            }
+                        if self.keys[self.v[x] as usize] == false {
+                            self.pc += 2;
                         }
                         self.pc += 2;
                     }
@@ -270,8 +267,9 @@ impl Chip8 {
                     /* Wait for a key press, store the value of the key in Vx.
                     All execution stops until a key is pressed, then the value of that key is stored in Vx. */
                     0x0A => {
-                        if let Some(key) = self.active_key {
-                            self.v[x] = key;
+                        if let Some(key_index) = self.keys.iter().position(|&key| key == true) {
+                            self.v[x] = key_index as u8;
+                            self.keys[key_index] = false;
                             self.pc += 2;
                         }
                     }
@@ -341,8 +339,6 @@ impl Chip8 {
         if self.sound_timer == 1 {
             println!("Beep!");
         }
-
-        self.active_key = None;
     }
 
     pub fn load_program(&mut self, path: &Path) -> Result<(), Error> {
